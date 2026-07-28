@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Whack-a-Mole — Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="../manifest.json" />
+<link rel="icon" href="../icons/icon-192.png" />
+<link rel="stylesheet" href="../css/style.css" />
+<style>
+  .mole-grid{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .hole{
+    position:relative;
+    aspect-ratio: 1 / 1;
+    background: #0D0A22;
+    border-radius: 50%;
+    border: 4px solid #3A3168;
+    overflow:hidden;
+    cursor:pointer;
+  }
+  .mole{
+    position:absolute;
+    left:50%; bottom:-100%;
+    transform: translateX(-50%);
+    width:70%; height:90%;
+    font-size: 42px;
+    display:flex; align-items:flex-end; justify-content:center;
+    transition: bottom .12s ease-out;
+    user-select:none;
+  }
+  .hole.up .mole{ bottom:-6%; }
+  .hole.whacked .mole{ filter: brightness(1.6); }
+  #startBtn{ margin-top:14px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="game-header">
+    <h1>🔨 Whack-a-Mole</h1>
+    <a class="btn-ghost" href="../games.html">← Games</a>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <div class="hud">
+    <span>SCORE: <b id="hudScore">0</b></span>
+    <span>TIME LEFT: <b id="hudTime">30</b>s</span>
+  </div>
+
+  <div class="stage">
+    <div class="mole-grid" id="grid"></div>
+    <button class="btn-primary" id="startBtn">🔨 Start 30s round</button>
+  </div>
+
+  <div id="resultArea"></div>
+
+  <div class="section-title">Leaderboard — Whack-a-Mole</div>
+  <div class="board" id="board"><div class="board-empty">Loading scores…</div></div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+  ensurePlayerName(() => renderPlayerBadge(document.getElementById('player-badge')));
+
+  const GAME_ID = 'whackamole';
+  const HOLE_COUNT = 9;
+  const ROUND_SECONDS = 30;
+
+  const grid = document.getElementById('grid');
+  const hudScore = document.getElementById('hudScore');
+  const hudTime = document.getElementById('hudTime');
+  const startBtn = document.getElementById('startBtn');
+  const resultArea = document.getElementById('resultArea');
+  const boardEl = document.getElementById('board');
+
+  const holes = [];
+  for (let i = 0; i < HOLE_COUNT; i++) {
+    const hole = document.createElement('div');
+    hole.className = 'hole';
+    hole.innerHTML = '<div class="mole">🐹</div>';
+    grid.appendChild(hole);
+    holes.push({ el: hole, up: false, timeout: null });
+    hole.addEventListener('click', () => whack(i));
+  }
+
+  let score = 0, timeLeft = ROUND_SECONDS, running = false, popTimer = null, countdownTimer = null;
+
+  function whack(i) {
+    if (!running) return;
+    const h = holes[i];
+    if (!h.up) return;
+    h.up = false;
+    h.el.classList.remove('up');
+    h.el.classList.add('whacked');
+    setTimeout(() => h.el.classList.remove('whacked'), 150);
+    score++;
+    hudScore.textContent = score;
+  }
+
+  function popRandomMole() {
+    const idx = Math.floor(Math.random() * HOLE_COUNT);
+    const h = holes[idx];
+    if (h.up) return;
+    h.up = true;
+    h.el.classList.add('up');
+    const upTime = 500 + Math.random() * 500;
+    setTimeout(() => {
+      h.up = false;
+      h.el.classList.remove('up');
+    }, upTime);
+  }
+
+  function startRound() {
+    score = 0; timeLeft = ROUND_SECONDS; running = true;
+    hudScore.textContent = '0';
+    hudTime.textContent = timeLeft;
+    resultArea.innerHTML = '';
+    startBtn.disabled = true;
+    startBtn.textContent = 'Round in progress…';
+
+    popTimer = setInterval(popRandomMole, 550);
+    countdownTimer = setInterval(() => {
+      timeLeft--;
+      hudTime.textContent = timeLeft;
+      if (timeLeft <= 0) endRound();
+    }, 1000);
+  }
+
+  function endRound() {
+    running = false;
+    clearInterval(popTimer);
+    clearInterval(countdownTimer);
+    holes.forEach((h) => { h.up = false; h.el.classList.remove('up'); });
+    startBtn.disabled = false;
+    startBtn.textContent = '🔨 Play again';
+    resultArea.innerHTML = `<div class="overlay-msg">Time's up — you whacked <b>${score}</b> moles!</div>`;
+    submitScore(GAME_ID, score).finally(loadBoard);
+  }
+
+  startBtn.addEventListener('click', startRound);
+
+  function loadBoard() {
+    fetchLeaderboard(GAME_ID).then((entries) => renderLeaderboard(boardEl, entries, { highlightName: getStoredName() }));
+  }
+
+  loadBoard();
+  registerServiceWorker('../service-worker.js');
+</script>
+</body>
+</html>

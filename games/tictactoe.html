@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Tic-Tac-Toe — Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="../manifest.json" />
+<link rel="icon" href="../icons/icon-192.png" />
+<link rel="stylesheet" href="../css/style.css" />
+<style>
+  .ttt-board{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    max-width: 320px;
+    margin: 0 auto;
+  }
+  .cell{
+    aspect-ratio: 1/1;
+    background: var(--surface-2);
+    border: 2px solid var(--line);
+    border-radius: 12px;
+    font-family: var(--display);
+    font-size: 42px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    color: var(--text);
+  }
+  .cell.x{ color: var(--blue); }
+  .cell.o{ color: var(--coral); }
+  .cell:disabled, .cell.taken{ cursor:default; }
+  .difficulty{ text-align:center; margin-bottom:14px; font-family: var(--mono); font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="game-header">
+    <h1>❌ Tic-Tac-Toe</h1>
+    <a class="btn-ghost" href="../games.html">← Games</a>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <div class="hud">
+    <span>YOU: <b>X</b></span>
+    <span>COMPUTER: <b>O</b></span>
+  </div>
+  <div class="difficulty">The computer never loses on purpose — win quick for a higher score.</div>
+
+  <div class="stage">
+    <div class="ttt-board" id="board3"></div>
+  </div>
+
+  <div id="resultArea"></div>
+
+  <div class="section-title">Leaderboard — Tic-Tac-Toe</div>
+  <div class="board" id="board"><div class="board-empty">Loading scores…</div></div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+  ensurePlayerName(() => renderPlayerBadge(document.getElementById('player-badge')));
+
+  const GAME_ID = 'tictactoe';
+  const boardEl3 = document.getElementById('board3');
+  const resultArea = document.getElementById('resultArea');
+  const boardEl = document.getElementById('board');
+
+  const WIN_LINES = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6],
+  ];
+
+  let cells, gameActive, playerMoves;
+
+  function newGame() {
+    cells = Array(9).fill(null);
+    gameActive = true;
+    playerMoves = 0;
+    resultArea.innerHTML = '';
+    render();
+  }
+
+  function render() {
+    boardEl3.innerHTML = cells.map((v, i) => `
+      <button class="cell ${v === 'X' ? 'x' : v === 'O' ? 'o' : ''}" data-i="${i}" ${v || !gameActive ? 'disabled' : ''}>${v || ''}</button>
+    `).join('');
+    boardEl3.querySelectorAll('.cell').forEach((btn) => {
+      btn.addEventListener('click', () => playerMove(Number(btn.dataset.i)));
+    });
+  }
+
+  function checkWinner(board) {
+    for (const line of WIN_LINES) {
+      const [a,b,c] = line;
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) return board[a];
+    }
+    if (board.every((c) => c)) return 'draw';
+    return null;
+  }
+
+  function playerMove(i) {
+    if (!gameActive || cells[i]) return;
+    cells[i] = 'X';
+    playerMoves++;
+    render();
+    const result = checkWinner(cells);
+    if (result) return endGame(result);
+    setTimeout(computerMove, 300);
+  }
+
+  function computerMove() {
+    if (!gameActive) return;
+    const best = minimax(cells, 'O');
+    cells[best.index] = 'O';
+    render();
+    const result = checkWinner(cells);
+    if (result) endGame(result);
+  }
+
+  function minimax(board, player) {
+    const winner = checkWinner(board);
+    if (winner === 'O') return { score: 10 };
+    if (winner === 'X') return { score: -10 };
+    if (winner === 'draw') return { score: 0 };
+
+    const moves = [];
+    for (let i = 0; i < 9; i++) {
+      if (board[i]) continue;
+      const newBoard = board.slice();
+      newBoard[i] = player;
+      const result = minimax(newBoard, player === 'O' ? 'X' : 'O');
+      moves.push({ index: i, score: result.score });
+    }
+
+    if (player === 'O') {
+      return moves.reduce((best, m) => (m.score > best.score ? m : best));
+    } else {
+      return moves.reduce((best, m) => (m.score < best.score ? m : best));
+    }
+  }
+
+  function endGame(result) {
+    gameActive = false;
+    render();
+    let score = 0;
+    let msg = '';
+    if (result === 'X') {
+      score = Math.max(20, 100 - (playerMoves - 3) * 15);
+      msg = `You beat the computer in ${playerMoves} moves! Score: ${score}`;
+    } else if (result === 'O') {
+      score = 0;
+      msg = `The computer got you this time. Score: 0`;
+    } else {
+      score = 30;
+      msg = `It's a draw — solid defense. Score: ${score}`;
+    }
+    resultArea.innerHTML = `<div class="overlay-msg">${msg}</div>
+      <button class="btn-primary" id="retryBtn" style="margin-top:12px;">❌ Play again</button>`;
+    document.getElementById('retryBtn').addEventListener('click', newGame);
+    submitScore(GAME_ID, score).finally(loadBoard);
+  }
+
+  function loadBoard() {
+    fetchLeaderboard(GAME_ID).then((entries) => renderLeaderboard(boardEl, entries, { highlightName: getStoredName() }));
+  }
+
+  newGame();
+  loadBoard();
+  registerServiceWorker('../service-worker.js');
+</script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Office Quiz — Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="../manifest.json" />
+<link rel="icon" href="../icons/icon-192.png" />
+<link rel="stylesheet" href="../css/style.css" />
+<style>
+  .qtext{ font-family: var(--display); font-size: 18px; margin: 4px 0 16px; }
+  .options{ display:grid; gap:10px; }
+  .opt{
+    text-align:left;
+    background: var(--surface-2);
+    border: 2px solid var(--line);
+    color: var(--text);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    cursor:pointer;
+  }
+  .opt:hover{ border-color: var(--muted); }
+  .opt.correct{ border-color: var(--teal); background: rgba(61,220,151,.15); }
+  .opt.wrong{ border-color: var(--coral); background: rgba(255,107,107,.15); }
+  .opt:disabled{ cursor:default; }
+  .qmeta{ font-family: var(--mono); font-size:12px; color:var(--muted); margin-bottom:8px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="game-header">
+    <h1>🧠 Office Quiz</h1>
+    <a class="btn-ghost" href="../games.html">← Games</a>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <div class="hud">
+    <span>SCORE: <b id="hudScore">0</b></span>
+    <span>QUESTION: <b id="hudQ">1</b>/<b id="hudTotal">10</b></span>
+  </div>
+
+  <div class="stage" id="stage"></div>
+
+  <div id="resultArea"></div>
+
+  <div class="section-title">Leaderboard — Office Quiz</div>
+  <div class="board" id="board"><div class="board-empty">Loading scores…</div></div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+  ensurePlayerName(() => renderPlayerBadge(document.getElementById('player-badge')));
+
+  const GAME_ID = 'quiz';
+  const stage = document.getElementById('stage');
+  const hudScore = document.getElementById('hudScore');
+  const hudQ = document.getElementById('hudQ');
+  const hudTotal = document.getElementById('hudTotal');
+  const resultArea = document.getElementById('resultArea');
+  const boardEl = document.getElementById('board');
+
+  const ALL_QUESTIONS = [
+    { q: "What does 'CC' mean in an email?", options: ["Carbon Copy", "Central Command", "Company Contact", "Confirmed Copy"], a: 0 },
+    { q: "In a typical work week, how many working days are there?", options: ["4", "5", "6", "7"], a: 1 },
+    { q: "What's the standard file format for a spreadsheet?", options: [".docx", ".pptx", ".xlsx", ".mp3"], a: 2 },
+    { q: "What does 'ASAP' stand for?", options: ["As Soon As Possible", "As Slow As Possible", "A Simple Automated Process", "At Some Available Point"], a: 0 },
+    { q: "Which meeting tool feature mutes your mic for everyone?", options: ["Mute all", "Record", "Chat", "Whiteboard"], a: 0 },
+    { q: "What's usually the busiest time to book a meeting room?", options: ["Early morning", "Lunch hour", "Midday", "End of day"], a: 2 },
+    { q: "A 'stand-up' meeting is best known for being:", options: ["Long", "Short & daily", "Once a year", "Only for managers"], a: 1 },
+    { q: "What does 'OOO' mean?", options: ["Out of Office", "On Our Own", "Order of Operations", "Overtime Only"], a: 0 },
+    { q: "Which is a common productivity technique using a timer?", options: ["Pomodoro", "Espresso", "Sundae", "Tiramisu"], a: 0 },
+    { q: "What should you do before hitting 'Reply All'?", options: ["Nothing, just send", "Check who really needs it", "Add more people", "Change the subject"], a: 1 },
+    { q: "What's a common icebreaker in team meetings?", options: ["Silent reading", "Two truths and a lie", "Solo trivia", "Budget review"], a: 1 },
+    { q: "Which is NOT a typical office beverage?", options: ["Coffee", "Tea", "Motor oil", "Water"], a: 2 },
+  ];
+
+  const TOTAL_QUESTIONS = 10;
+  let questions = [];
+  let idx = 0;
+  let score = 0;
+  let answered = false;
+  let qStartTime = 0;
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function startQuiz() {
+    questions = shuffle(ALL_QUESTIONS).slice(0, TOTAL_QUESTIONS);
+    idx = 0; score = 0;
+    hudTotal.textContent = questions.length;
+    resultArea.innerHTML = '';
+    renderQuestion();
+  }
+
+  function renderQuestion() {
+    answered = false;
+    const item = questions[idx];
+    hudQ.textContent = idx + 1;
+    hudScore.textContent = score;
+    qStartTime = Date.now();
+    stage.innerHTML = `
+      <div class="qmeta">Answer fast for a bigger score bonus</div>
+      <div class="qtext">${item.q}</div>
+      <div class="options">
+        ${item.options.map((opt, i) => `<button class="opt" data-i="${i}">${opt}</button>`).join('')}
+      </div>
+    `;
+    stage.querySelectorAll('.opt').forEach((btn) => {
+      btn.addEventListener('click', () => selectOption(Number(btn.dataset.i)));
+    });
+  }
+
+  function selectOption(choice) {
+    if (answered) return;
+    answered = true;
+    const item = questions[idx];
+    const elapsedMs = Date.now() - qStartTime;
+    const speedBonus = Math.max(0, 5 - Math.floor(elapsedMs / 1000)); // up to +5 for fast answers
+    const correct = choice === item.a;
+
+    stage.querySelectorAll('.opt').forEach((btn, i) => {
+      btn.disabled = true;
+      if (i === item.a) btn.classList.add('correct');
+      else if (i === choice) btn.classList.add('wrong');
+    });
+
+    if (correct) {
+      score += 10 + speedBonus;
+      hudScore.textContent = score;
+    }
+
+    setTimeout(() => {
+      idx++;
+      if (idx < questions.length) renderQuestion();
+      else finishQuiz();
+    }, 700);
+  }
+
+  function finishQuiz() {
+    stage.innerHTML = `<div class="overlay-msg">Quiz complete — final score <b>${score}</b>!</div>
+      <button class="btn-primary" id="retryBtn" style="margin-top:12px;">🧠 Play again</button>`;
+    document.getElementById('retryBtn').addEventListener('click', startQuiz);
+    submitScore(GAME_ID, score).finally(loadBoard);
+  }
+
+  function loadBoard() {
+    fetchLeaderboard(GAME_ID).then((entries) => renderLeaderboard(boardEl, entries, { highlightName: getStoredName() }));
+  }
+
+  startQuiz();
+  loadBoard();
+  registerServiceWorker('../service-worker.js');
+</script>
+</body>
+</html>
