@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Flappy Bounce — Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="../manifest.json" />
+<link rel="icon" href="../icons/icon-192.png" />
+<link rel="stylesheet" href="../css/style.css" />
+<style>
+  #stage-wrap{ position:relative; }
+  #tapHint{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family: var(--display); color: rgba(255,255,255,.8); font-size:16px;
+    pointer-events:none; text-align:center; padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="game-header">
+    <h1>🐤 Flappy Bounce</h1>
+    <a class="btn-ghost" href="../games.html">← Games</a>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <div class="hud">
+    <span>SCORE: <b id="hudScore">0</b></span>
+    <span>BEST (this device): <b id="hudBest">0</b></span>
+  </div>
+
+  <div class="stage">
+    <div id="stage-wrap">
+      <canvas id="game" width="360" height="480"></canvas>
+      <div id="tapHint">Tap / click / press Space<br/>to flap and start</div>
+    </div>
+  </div>
+
+  <div id="resultArea"></div>
+
+  <div class="section-title">Leaderboard — Flappy Bounce</div>
+  <div class="board" id="board"><div class="board-empty">Loading scores…</div></div>
+</div>
+
+<script src="../js/shared.js"></script>
+<script>
+  ensurePlayerName(() => renderPlayerBadge(document.getElementById('player-badge')));
+
+  const GAME_ID = 'flappy';
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const tapHint = document.getElementById('tapHint');
+  const hudScore = document.getElementById('hudScore');
+  const hudBest = document.getElementById('hudBest');
+  const resultArea = document.getElementById('resultArea');
+  const boardEl = document.getElementById('board');
+
+  const BEST_KEY = 'oga_best_' + GAME_ID;
+  let best = Number(localStorage.getItem(BEST_KEY) || 0);
+  hudBest.textContent = best;
+
+  let bird, pipes, frame, score, running, started, gameOver;
+
+  function reset() {
+    bird = { x: 70, y: H/2, vy: 0, r: 14 };
+    pipes = [];
+    frame = 0;
+    score = 0;
+    running = false;
+    started = false;
+    gameOver = false;
+    hudScore.textContent = '0';
+    resultArea.innerHTML = '';
+    tapHint.style.display = 'flex';
+    draw();
+  }
+
+  const GRAVITY = 0.45;
+  const FLAP = -7.6;
+  const PIPE_GAP = 150;
+  const PIPE_W = 56;
+  const PIPE_SPEED = 2.6;
+
+  function flap() {
+    if (gameOver) { reset(); return; }
+    if (!started) { started = true; running = true; tapHint.style.display = 'none'; }
+    bird.vy = FLAP;
+  }
+
+  function spawnPipe() {
+    const margin = 50;
+    const top = margin + Math.random() * (H - PIPE_GAP - margin*2);
+    pipes.push({ x: W + PIPE_W, top, passed: false });
+  }
+
+  function update() {
+    if (!running) return;
+    frame++;
+    if (frame % 95 === 0) spawnPipe();
+
+    bird.vy += GRAVITY;
+    bird.y += bird.vy;
+
+    pipes.forEach((p) => { p.x -= PIPE_SPEED; });
+    pipes = pipes.filter((p) => p.x > -PIPE_W);
+
+    pipes.forEach((p) => {
+      if (!p.passed && p.x + PIPE_W < bird.x) {
+        p.passed = true;
+        score++;
+        hudScore.textContent = score;
+      }
+      const withinX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_W;
+      const hitTop = bird.y - bird.r < p.top;
+      const hitBottom = bird.y + bird.r > p.top + PIPE_GAP;
+      if (withinX && (hitTop || hitBottom)) endGame();
+    });
+
+    if (bird.y + bird.r > H || bird.y - bird.r < 0) endGame();
+  }
+
+  function endGame() {
+    if (gameOver) return;
+    running = false;
+    gameOver = true;
+    if (score > best) {
+      best = score;
+      localStorage.setItem(BEST_KEY, best);
+      hudBest.textContent = best;
+    }
+    resultArea.innerHTML = `<div class="overlay-msg">Game over — score <b>${score}</b>. Tap to try again.</div>`;
+    submitScore(GAME_ID, score).finally(loadBoard);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // sky
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0, '#2A2251');
+    grad.addColorStop(1, '#14102B');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,W,H);
+
+    // pipes
+    pipes.forEach((p) => {
+      ctx.fillStyle = '#3DDC97';
+      ctx.fillRect(p.x, 0, PIPE_W, p.top);
+      ctx.fillRect(p.x, p.top + PIPE_GAP, PIPE_W, H - (p.top + PIPE_GAP));
+    });
+
+    // bird
+    ctx.fillStyle = '#FFC93C';
+    ctx.beginPath();
+    ctx.arc(bird.x, bird.y, bird.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#14102B';
+    ctx.beginPath();
+    ctx.arc(bird.x + 5, bird.y - 4, 2.5, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  canvas.addEventListener('mousedown', flap);
+  canvas.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); }, { passive: false });
+  window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+
+  function loadBoard() {
+    fetchLeaderboard(GAME_ID).then((entries) => renderLeaderboard(boardEl, entries, { highlightName: getStoredName() }));
+  }
+
+  reset();
+  loop();
+  loadBoard();
+  registerServiceWorker('../service-worker.js');
+</script>
+</body>
+</html>
