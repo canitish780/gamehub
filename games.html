@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Choose a game — Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="wrap">
+  <div class="game-header">
+    <h1>Choose your game</h1>
+    <a class="btn-ghost" href="index.html">← Home</a>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <div class="game-grid" id="grid"></div>
+
+  <div class="footer-note">Each game keeps its own leaderboard.</div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  ensurePlayerName(() => {
+    renderPlayerBadge(document.getElementById('player-badge'));
+  });
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = ARCADE.GAMES.map((g) => `
+    <a class="cabinet" href="${g.file}" style="--accent:${g.color}">
+      <span class="tag">HIGH SCORE</span>
+      <span class="emoji">${g.emoji}</span>
+      <h3>${g.name}</h3>
+      <p>${g.tagline}</p>
+    </a>
+  `).join('');
+
+  registerServiceWorker('service-worker.js');
+</script>
+</body>
+</html>

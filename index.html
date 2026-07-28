@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Break Room Arcade</title>
+<meta name="theme-color" content="#14102B" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="marquee">
+    <h1>Break Room Arcade</h1>
+    <p>One coin. Four games. Bragging rights on the line.</p>
+  </div>
+
+  <div class="player-badge" id="player-badge"></div>
+
+  <a class="btn-primary" href="games.html">🕹️ Start Game</a>
+
+  <div class="section-title">Leaderboards</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="board" id="board">
+    <div class="board-empty">Loading scores…</div>
+  </div>
+
+  <div class="footer-note">Every device is asked its name once — that name is what shows up here.</div>
+</div>
+
+<script src="js/shared.js"></script>
+<script>
+  ensurePlayerName(() => {
+    renderPlayerBadge(document.getElementById('player-badge'));
+  });
+
+  const tabsEl = document.getElementById('tabs');
+  const boardEl = document.getElementById('board');
+  let activeGame = ARCADE.GAMES[0].id;
+
+  function loadBoard(gameId) {
+    activeGame = gameId;
+    [...tabsEl.children].forEach((t) => t.classList.toggle('active', t.dataset.id === gameId));
+    boardEl.innerHTML = '<div class="board-empty">Loading scores…</div>';
+    fetchLeaderboard(gameId).then((entries) => {
+      renderLeaderboard(boardEl, entries, { highlightName: getStoredName() });
+    });
+  }
+
+  tabsEl.innerHTML = ARCADE.GAMES.map((g) => `
+    <button class="tab" data-id="${g.id}" style="--accent:${g.color}">${g.emoji} ${g.name}</button>
+  `).join('');
+
+  [...tabsEl.children].forEach((t) => {
+    t.addEventListener('click', () => loadBoard(t.dataset.id));
+  });
+
+  loadBoard(activeGame);
+  registerServiceWorker('service-worker.js');
+</script>
+</body>
+</html>
